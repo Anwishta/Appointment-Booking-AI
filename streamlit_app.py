@@ -235,10 +235,10 @@ if not st.session_state.messages:
         <div class="bot-message">
             👋 Hello! I'm your AI Calendar Assistant. I can help you:
             <br><br>
-            ✅ Check your calendar availability<br>
-            ✅ Schedule new appointments<br>
-            ✅ Find suitable time slots<br>
-            ✅ Book meetings with natural language<br>
+            - Check your calendar availability<br>
+            - Schedule new appointments<br>
+            - Find suitable time slots<br>
+            - Book meetings with natural language<br>
             <br>
             Just tell me what you'd like to schedule, and I'll take care of the rest!
         </div>

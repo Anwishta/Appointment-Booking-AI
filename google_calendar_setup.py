@@ -82,7 +82,7 @@ def test_calendar_connection():
             print('No calendars found.')
             return False
         
-        print('✅ Successfully connected to Google Calendar!')
+        print(' Successfully connected to Google Calendar!')
         print(f'Found {len(calendars)} calendar(s):')
         for calendar in calendars:
             print(f'  - {calendar["summary"]} ({calendar["id"]})')
@@ -90,7 +90,7 @@ def test_calendar_connection():
         return True
         
     except Exception as e:
-        print(f'❌ Error connecting to Google Calendar: {e}')
+        print(f' Error connecting to Google Calendar: {e}')
         return False
 
 def create_sample_event():
@@ -124,29 +124,29 @@ def create_sample_event():
         }
         
         event_result = service.events().insert(calendarId='primary', body=event).execute()
-        print(f'✅ Sample event created: {event_result.get("htmlLink")}')
+        print(f' Sample event created: {event_result.get("htmlLink")}')
         return True
         
     except Exception as e:
-        print(f'❌ Error creating sample event: {e}')
+        print(f' Error creating sample event: {e}')
         return False
 
 if __name__ == '__main__':
-    print("🚀 Google Calendar Setup for AI Calendar Agent")
+    print(" Google Calendar Setup for AI Calendar Agent")
     print("="*50)
     
     # Test connection
     if test_calendar_connection():
-        print("\n🎉 Google Calendar integration is ready!")
+        print("\n Google Calendar integration is ready!")
         
         # Ask if user wants to create a sample event
         create_sample = input("\nWould you like to create a sample event to test booking? (y/n): ")
         if create_sample.lower() == 'y':
             create_sample_event()
     else:
-        print("\n❌ Google Calendar setup failed. Please check your credentials.")
+        print("\n Google Calendar setup failed. Please check your credentials.")
         
-    print("\n📝 Next steps:")
+    print("\n Next steps:")
     print("1. Start the FastAPI backend: python app.py")
     print("2. Start the Streamlit frontend: streamlit run streamlit_app.py")
     print("3. Test the calendar agent in your browser!")
