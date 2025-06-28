@@ -7,7 +7,7 @@ import os
 from datetime import datetime, timedelta
 import json
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolExecutor
+
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
@@ -270,6 +270,7 @@ class AgentState:
         self.pending_confirmation: bool = False
 
 # LangGraph Agent Setup
+# LangGraph Agent Setup
 class CalendarAgent:
     def __init__(self):
         self.llm = ChatOpenAI(
@@ -278,34 +279,39 @@ class CalendarAgent:
             api_key=os.getenv("OPENAI_API_KEY", "your-openai-api-key")
         )
         self.tools = [check_availability, book_time_slot]
-        self.tool_executor = ToolExecutor(self.tools)
+        self.tools_map = {tool.name: tool for tool in self.tools}
         self.graph = self._create_graph()
-    
+
+    def run_tool(self, tool_name: str, input_args: dict):
+        tool = self.tools_map.get(tool_name)
+        if not tool:
+            return f"❌ Tool '{tool_name}' not found."
+        try:
+            return tool.invoke(input_args)
+        except Exception as e:
+            return f"❌ Tool execution error: {str(e)}"
+
     def _create_graph(self):
-        # Create the graph
         workflow = StateGraph(dict)
-        
-        # Add nodes
+
         workflow.add_node("understand_intent", self.understand_intent)
         workflow.add_node("check_calendar", self.check_calendar)
         workflow.add_node("suggest_slots", self.suggest_slots)
         workflow.add_node("confirm_booking", self.confirm_booking)
         workflow.add_node("book_appointment", self.book_appointment)
-        
-        # Add edges
+
         workflow.set_entry_point("understand_intent")
         workflow.add_edge("understand_intent", "check_calendar")
         workflow.add_edge("check_calendar", "suggest_slots")
         workflow.add_edge("suggest_slots", "confirm_booking")
         workflow.add_edge("confirm_booking", "book_appointment")
         workflow.add_edge("book_appointment", END)
-        
+
         return workflow.compile()
-    
+
     def understand_intent(self, state: Dict) -> Dict:
-        """Understand user intent from the message"""
         user_message = state.get("user_message", "")
-        
+
         intent_prompt = ChatPromptTemplate.from_template(
             """You are a calendar booking assistant. Analyze the user's message and determine their intent.
             
@@ -326,17 +332,16 @@ class CalendarAgent:
             Meeting purpose: [purpose if mentioned or "general meeting"]
             """
         )
-        
+
         try:
             response = self.llm.invoke(intent_prompt.format(message=user_message))
             intent_analysis = response.content
-            
-            # Parse the response (simplified)
+
             lines = intent_analysis.strip().split('\n')
-            intent = "book_appointment"  # Default
+            intent = "book_appointment"
             time_pref = "none"
             purpose = "Meeting"
-            
+
             for line in lines:
                 if line.startswith("Intent:"):
                     intent = line.split(":", 1)[1].strip()
@@ -344,38 +349,34 @@ class CalendarAgent:
                     time_pref = line.split(":", 1)[1].strip()
                 elif line.startswith("Meeting purpose:"):
                     purpose = line.split(":", 1)[1].strip()
-            
+
             state.update({
                 "intent": intent,
                 "time_preference": time_pref,
                 "meeting_purpose": purpose
             })
-            
-        except Exception as e:
+
+        except Exception:
             state.update({
                 "intent": "book_appointment",
                 "time_preference": "none",
                 "meeting_purpose": "Meeting"
             })
-        
+
         return state
-    
+
     def check_calendar(self, state: Dict) -> Dict:
-        """Check calendar availability"""
         time_pref = state.get("time_preference", "tomorrow")
-        
         try:
-            availability = check_availability.invoke({"query": time_pref})
+            availability = self.run_tool("check_availability", {"query": time_pref})
             state["availability_response"] = availability
-        except Exception as e:
+        except Exception:
             state["availability_response"] = "Unable to check calendar availability at the moment."
-        
         return state
-    
+
     def suggest_slots(self, state: Dict) -> Dict:
-        """Suggest available time slots to the user"""
         availability = state.get("availability_response", "")
-        
+
         suggestion_prompt = ChatPromptTemplate.from_template(
             """You are a helpful calendar assistant. Based on the availability information, 
             suggest suitable time slots to the user in a conversational manner.
@@ -387,57 +388,51 @@ class CalendarAgent:
             Be conversational and helpful.
             """
         )
-        
+
         try:
             response = self.llm.invoke(suggestion_prompt.format(
                 availability=availability,
                 time_pref=state.get("time_preference", "")
             ))
             state["suggestion_response"] = response.content
-        except Exception as e:
+        except Exception:
             state["suggestion_response"] = "I found some available slots. Please let me know which time works best for you."
-        
+
         return state
-    
+
     def confirm_booking(self, state: Dict) -> Dict:
-        """Handle booking confirmation"""
         state["confirmation_needed"] = True
         state["confirmation_message"] = "Please confirm if you'd like me to book this appointment."
         return state
-    
+
     def book_appointment(self, state: Dict) -> Dict:
-        """Book the appointment"""
         meeting_purpose = state.get("meeting_purpose", "Meeting")
-        
         try:
-            booking_result = book_time_slot.invoke({
+            booking_result = self.run_tool("book_time_slot", {
                 "slot_info": "selected_slot",
                 "meeting_title": meeting_purpose
             })
             state["booking_result"] = booking_result
-        except Exception as e:
+        except Exception:
             state["booking_result"] = "❌ Sorry, I couldn't book the appointment. Please try again."
-        
         return state
-    
+
     async def process_message(self, message: str) -> str:
-        """Process a user message and return a response"""
         try:
-            # Run the graph
             result = self.graph.invoke({
                 "user_message": message
             })
-            
-            # Return appropriate response based on the current state
+
             if "suggestion_response" in result:
                 return result["suggestion_response"]
             elif "booking_result" in result:
                 return result["booking_result"]
             else:
                 return "I'm here to help you schedule appointments. What would you like to book?"
-                
+
         except Exception as e:
             return f"I apologize, but I encountered an error: {str(e)}. Please try again."
+
 
 # Initialize the agent
 calendar_agent = CalendarAgent()
